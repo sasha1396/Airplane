@@ -4,6 +4,7 @@ This repository includes the flying wing radio transmitter and radio receiver sc
 
 ## Airplane
 ![Airplane](docs/pictures/photo_2021-05-02_13-25-54.jpg)
+![Airplane_board](docs/pictures/photo_2021-05-02_12-32-58.jpg)
 
 
 ## Remote Control
