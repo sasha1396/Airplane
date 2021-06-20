@@ -53,9 +53,9 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
-char str_tx[64] = {0,};
+char str_tx[121] = {0,};
 volatile uint16_t adc[4] = {0,}; // у нас четыре канала поэтому массив из четырех элементов
-volatile uint8_t flag = 1; // для DMA
+volatile uint8_t flag = 0; // для DMA
 uint8_t adc1, adc2, adc3, adc4;
 const float kd = 3.52;
 char tx[21], x = 0, m = 1, y = 0;
@@ -67,12 +67,6 @@ unsigned char but_right_prev;// переменная для хранения п�
 unsigned char but_left_prev;// переменная для хранения предыдущего состояния стика L
 unsigned char but_r_prev;// переменная для хранения предыдущего состояния кнопки R
 unsigned char but_l_prev;// переменная для хранения предыдущего состояния кнопки L
-
-// чтение текущего (нового) состояния кнопки
-//unsigned char but_right_cur;
-//unsigned char but_left_cur;
-//unsigned char but_r_cur;
-//unsigned char but_l_cur;
 
 /* USER CODE END PV */
 
@@ -142,7 +136,7 @@ int main(void)
 	but_left_prev = HAL_GPIO_ReadPin(GPIOB, Push_L_Pin); // переменная для хранения предыдущего состояния стика L
 	
 	but_r_prev = HAL_GPIO_ReadPin(R_But_GPIO_Port, R_But_Pin);// переменная для хранения предыдущего состояния кнопки R
-	but_l_prev = HAL_GPIO_ReadPin(L_But_GPIO_Port, L_But_Pin);;// переменная для хранения предыдущего состояния кнопки R
+	but_l_prev = HAL_GPIO_ReadPin(L_But_GPIO_Port, L_But_Pin);;// переменная для хранения предыдущего состояния кнопки L
 	
   /* USER CODE END Init */
 
@@ -162,106 +156,122 @@ int main(void)
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 	
-	const uint64_t pipe1 = 0xE8E8F0F0E2LL; // адрес нашего приемника
-
-	uint8_t res = isChipConnected(); // проверка на подключените модуля к SPI
-
-  char str[64] = {0,};
-  snprintf(str, 64, "Connected: %s\r\n", 1 ? "OK" : "NOT OK");
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
-	HAL_Delay(500);
-
-  res = NRF_Init(); // инициализация
-
-  snprintf(str, 64, "Init: %s\r\n", res > 0 && res < 255 ? "OK" : "NOT OK");
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
-	HAL_Delay(500);
+	const uint64_t pipe1 = 0xE8E8F0F0E2LL; // адрес приемника
 	
+	uint8_t connected = isChipConnected(); // проверка на подключените модуля к SPI
+	
+	uint8_t res = NRF_Init(); // инициализация
 
   ////////////// УСТАНОВКИ ////////////////
   enableAckPayload();
   setChannel(11); // 11 канал
   openWritingPipe(pipe1); // 1 труба
   ///////////////////////////////////
-
+	
 
 // ################################# DEBUG_RC OUT ############################
-#ifdef DEBUG_RC
-  uint8_t status = get_status();
-  snprintf(str, 64, "get_status: 0x%02x \r\n", status);
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
-	HAL_Delay(500);
 
-  status = getPALevel();
-  snprintf(str, 64, "getPALevel: 0x%02x \n", status);
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
-	HAL_Delay(500);
 
-  if(status == 0x00)
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_PA_MIN\r\n", strlen("RF24_PA_MIN\r\n"));
-  }
-  else if(status == 0x01)
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_PA_LOW\r\n", strlen("RF24_PA_LOW\r\n"));
-  }
-  else if(status == 0x02)
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_PA_HIGH\r\n", strlen("RF24_PA_HIGH\r\n"));
-  }
-  else if(status == 0x03)
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_PA_MAX\r\n", strlen("RF24_PA_MAX\r\n"));
-  }
+//HAL_Delay(2000);
+//char str[64] = {0,};
+//snprintf(str, 64, "Connected: %s\r\n", connected ? "OK" : "NOT OK");
+//CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//HAL_Delay(500);
 
-  status = getChannel();
-  snprintf(str, 64, "getChannel: 0x%02x № %d \r\n", status, status);
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//snprintf(str, 64, "Init: %s\r\n", res > 0 && res < 255 ? "OK" : "NOT OK");
+//CDC_Transmit_FS((unsigned char*)str, strlen(str));
 
-  status = getDataRate();
-  snprintf(str, 64, "getDataRate: 0x%02x \r\n", status);
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//if (res > 0 && res < 255) 
+//{
+//	uint8_t status = get_status();
+//	snprintf(str, 64, "Status: 0x%02x \r\n", status);
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
 
-  if(status == 0x02)
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_250KBPS\r\n", strlen("RF24_250KBPS\r\n"));
-  }
-  else if(status == 0x01)
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_2MBPS\r\n", strlen("RF24_2MBPS\r\n"));
-  }
-  else
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_1MBPS\r\n", strlen("RF24_1MBPS\r\n"));
-  }
+//	status = getPALevel();
+//	snprintf(str, 64, "PA_Level: 0x%02x \n", status);
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
 
-  status = getPayloadSize();
-  snprintf(str, 64, "getPayloadSize: %d \r\n", status);
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
-	HAL_Delay(500);
+//	if(status == 0x00)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_PA_MIN\r\n", strlen("RF24_PA_MIN\r\n"));
+//	}
+//	else if(status == 0x01)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_PA_LOW\r\n", strlen("RF24_PA_LOW\r\n"));
+//	}
+//	else if(status == 0x02)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_PA_HIGH\r\n", strlen("RF24_PA_HIGH\r\n"));
+//	}
+//	else if(status == 0x03)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_PA_MAX\r\n", strlen("RF24_PA_MAX\r\n"));
+//	}
+//	HAL_Delay(500);
+//	
+//	status = getChannel();
+//	snprintf(str, 64, "Channel: 0x%02x № %d \r\n", status, status);
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
 
-  status = getCRCLength();
-  snprintf(str, 64, "getCRCLength: 0x%02x \r\n", status);
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	status = getDataRate();
+//	snprintf(str, 64, "Data_Rate: 0x%02x \r\n", status);
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
 
-  if(status == 0x00)
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_CRC_DISABLED\r\n", strlen("RF24_CRC_DISABLED\r\n"));
-  }
-  else if(status == 0x01)
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_CRC_8\r\n", strlen("RF24_CRC_8\r\n"));
-  }
-  else if(status == 0x02)
-  {
-		CDC_Transmit_FS((unsigned char*)"RF24_CRC_16\r\n", strlen("RF24_CRC_16\r\n"));
-  }
-#endif
+//	if(status == 0x02)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_250KBPS\r\n", strlen("RF24_250KBPS\r\n"));
+//	}
+//	else if(status == 0x01)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_2MBPS\r\n", strlen("RF24_2MBPS\r\n"));
+//	}
+//	else
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_1MBPS\r\n", strlen("RF24_1MBPS\r\n"));
+//	}
+//	HAL_Delay(500);
+
+//	status = getPayloadSize();
+//	snprintf(str, 64, "Payload_Size: %d \r\n", status);
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
+
+//	status = getCRCLength();
+//	snprintf(str, 64, "CRC_Length: 0x%02x \r\n", status);
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
+
+//	if(status == 0x00)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_CRC_DISABLED\r\n", strlen("RF24_CRC_DISABLED\r\n"));
+//	}
+//	else if(status == 0x01)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_CRC_8\r\n", strlen("RF24_CRC_8\r\n"));
+//	}
+//	else if(status == 0x02)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_CRC_16\r\n", strlen("RF24_CRC_16\r\n"));
+//	}
+//	HAL_Delay(500);
+//}
+//else
+//{
+//	HAL_Delay(500);
+//	snprintf(str, 64, "Module is not connected or defective");
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
+//}
+
+
 // ############################# END OF DEBUG_RC OUT #########################
 	
   maskIRQ(true, true, true); // маскируем прерывания
-	//sprintf(str_tx,"USB Transmit\r\n");
-	
+
 	// Запуск АЦП
 	HAL_ADCEx_Calibration_Start(&hadc1);
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 4);
@@ -281,153 +291,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		uint8_t nrf_data[32] = {0,}; // Размер буфера (32-MAX)
-		
-		if (twobuttons())
-			{// ставим флаг 
-				a = !a;
-			}
 		menu(x);	
-		if(flag)
-		{
-			flag = 0;
-			
-			if (a) // отправляем реальное положение стиков
-		{
-			HAL_ADC_Stop_DMA(&hadc1); // это необязательно
-			
-			adc1 = map(adc[1], 0, 4095, 0, 255); // 1 канал высота
-			adc2 = map(adc[0], 0, 4095, 0, 255); // 0 канал повороты
-			adc3 = map(adc[3], 0, 4095, 0, 255); // 9 канал АЦП - мотор
-				
-			float vbat = (3.3/4095)*adc[2]*kd * 10; // 3,3 В на делителе при 11,6 В максимальном, дальше делитель не имее смысла
-			
-			LCD_invertText(true);
-			LCD_print("ADC1:          ", 0, 0);
-			LCD_var_str(30, 0, adc[0], 4);
-			LCD_invertText(false);
-			LCD_print("ADC21:", 0, 1);
-			LCD_var_str(30, 1, adc[1], 4);
-			
-			LCD_print("ADC3:", 0, 2);
-			LCD_var_str(30, 2, adc[2], 4);
-			
-			LCD_print("ADC4:", 0, 3);
-			LCD_var_str(30, 3, adc[3], 4);
-					
-			snprintf(str_tx, 63, "ADC1 X1:%d Y1:%d  ADC2 X2:%d Y2:%d Vbat:%d\n", adc1, adc2, adc3, (uint16_t)adc[3], (uint16_t)adc[2]);
-			snprintf(str_tx, 63, "ADC1 X1:%d\n", (uint16_t)adc[2]);
-			CDC_Transmit_FS((uint8_t*)str_tx, strlen(str_tx));
-				
-							///////////////////////////////////// ПЕРЕДАЧА /////////////////////////////////////////////
-
-			if (adc1 == 0){ adc1 = 1;}
-			else if (adc2 == 0){ adc2 = 1;}
-			else if (adc3 == 0){ adc3 = 1;}
-
-			nrf_data[0] = 77;
-			nrf_data[1] = 86;
-			nrf_data[2] = 97;
-			
-			nrf_data[3] = adc1;
-			nrf_data[4] = adc2;
-			
-			if (button == 1){
-			nrf_data[5] = adc3;
-			}
-			else{ 
-				nrf_data[5] = 1;
-			}	
-			nrf_data[6] = 50; // установки не шлём
-			
-		} else // иначе настраиваем расходы и субтример
-			{
-			nrf_data[0] = 77;
-			nrf_data[1] = 86;
-			nrf_data[2] = 97;
-			nrf_data[3] = 128;// среднее значение на стике
-			nrf_data[4] = 128;// среднее значение на стике
-			nrf_data[5] = 1;
-			nrf_data[6] = 100; // чтобы приемник знал, что шлем установки
-			nrf_data[7] = subtrim;
-			snprintf(str_tx, 63, "ADC1 X1:%d Y1:%d  M:%d Ch:%d subtr:%d\n", nrf_data[3], nrf_data[4], nrf_data[5], nrf_data[6], nrf_data[7]);
-			CDC_Transmit_FS((uint8_t*)str_tx, strlen(str_tx));
-			}
-			
-			uint8_t remsg = 0; // переменная для приёма байта пришедшего вместе с ответом
-			float vbatreceiver; // для вычисления напряжения батареи на приемнике
-			
-			if(write(&nrf_data, strlen((const char*)nrf_data))) // отправляем данные
-			{
-				if(isAckPayloadAvailable()) // проверяем пришло ли что-то вместе с ответом
-				{
-				read(&remsg, sizeof(remsg)); // получаем напряжение с батареи с ответом подтверждения
-					vbatreceiver = remsg / 10; // вычисляем напряжение на батареи, делим на 10 чтобы получить реальное число
-					snprintf(str, 64, "Bat: %d \r\n", remsg);
-				CDC_Transmit_FS((unsigned char*)str, strlen(str));
-				}
-			}
-			else
-			CDC_Transmit_FS((unsigned char*)"Not write\n\r\n", strlen("Not write\n\r\n"));
-			
-			adc[0] = 0;
-			adc[1] = 0;
-			adc[2] = 0;
-			adc[3] = 0;
-			HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 4);
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		}
-		// чтение текущего (нового) состояния кнопки
-		unsigned char but_right_cur = HAL_GPIO_ReadPin(GPIOC, Push_R_Pin);
-		unsigned char but_left_cur = HAL_GPIO_ReadPin(GPIOB, Push_L_Pin);
-		
-		// кнопка была нажата, если
-		// прежнее состояние - отпущена (бит = 1), 
-		// а новое состояние - нажата (бит = 0)
-		if ((but_right_prev == GPIO_PIN_RESET) && (but_right_cur == GPIO_PIN_SET))
-		{
-			if (!a)
-			{ 			
-			subtrim += 5;
-				if (subtrim >= 200)
-			{
-				subtrim = 200;
-			}
-			}else{
-				button = !button;
-				// по нажатию R инвертируем светодиод PC13
-				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-		}
-		} 
-			// запоминаем текущее состояние кнопки
-			but_right_prev = but_right_cur;
-		
-			if (button) 
-			{
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-			}else 
-				{
-					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-				}
-		
-		if ((but_left_prev == GPIO_PIN_RESET) && (but_left_cur == GPIO_PIN_SET))
-		{ 
-			if (!a)
-			{				
-			subtrim -= 5;
-				if (subtrim == 255) 
-			{
-				subtrim = 0;
-			}
-			} else{
-			button = !button;
-			}
-		} 
-			// запоминаем текущее состояние кнопки
-		but_left_prev = but_left_cur;
 	}
   /* USER CODE END 3 */
 }
@@ -763,7 +630,6 @@ void menu(unsigned char x)
 			// прежнее состояние - отпущена (бит = 1), 
 			// а новое состояние - нажата (бит = 0)
 			if ((but_right_prev == GPIO_PIN_RESET) && (but_right_cur == GPIO_PIN_SET))
-	//		if (right_button())
 			{
 				m++;
 				if (m < 1)
@@ -775,8 +641,7 @@ void menu(unsigned char x)
 				// запоминаем текущее состояние кнопки
 				but_right_prev = but_right_cur;
 			
-		if ((but_left_prev == GPIO_PIN_RESET) && (but_left_cur == GPIO_PIN_SET))
-	//		if (left_button())		
+		if ((but_left_prev == GPIO_PIN_RESET) && (but_left_cur == GPIO_PIN_SET))	
 			{ 
 				m--;
 				if (m > 4)
@@ -824,7 +689,7 @@ void menu(unsigned char x)
 				m = 2; // возвращаемся в главное меню на позицию настроек
 				LCD_clrScr();
 			}
-//			led_lcd();
+			led_lcd();
 		}			
 //		break;
 		
@@ -918,75 +783,72 @@ void flight(void)
 	
 	uint8_t nrf_data[32] = {0,}; // буфер указываем максимального размера
 	
-		if(flag)
-		{
-			flag = 0;
+	if(flag)
+	{
+		flag = 0;
 
-			HAL_ADC_Stop_DMA(&hadc1); // это необязательно
+		HAL_ADC_Stop_DMA(&hadc1); // это необязательно
+		
+		adc1 = map(adc[1], 0, 4095, 1, 255); // 1 канал высота
+		adc2 = map(adc[0], 0, 4095, 1, 255); // 0 канал повороты
+		adc3 = map(adc[3], 0, 4095, 1, 255); // 9 канал АЦП - мотор
 			
-			adc1 = map(adc[1], 0, 4095, 1, 255); // 1 канал высота
-			adc2 = map(adc[0], 0, 4095, 1, 255); // 0 канал повороты
-			adc3 = map(adc[3], 0, 4095, 1, 255); // 9 канал АЦП - мотор
-				
-			float vbat = (3.3/4095)*adc[2]*kd * 10; // 3,3 В на делителе при 11,6 В максимальном, дальше делитель не имее смысла
-			
-			LCD_print("A1:", 0, 1);
-			LCD_var_str(18, 1, adc[0], 4);
-			LCD_print("A2:", 43, 1);
-			LCD_var_str(60, 1, adc[1], 4);
-			
-			LCD_print("A3:", 0, 2);
-			LCD_var_str(18, 2, adc[2], 4);
-			LCD_print("A4:", 43, 2);
-			LCD_var_str(60, 2, adc[3], 4);
-			
-			LCD_print("VBat:", 0, 3);
-			LCD_var_str(30, 3, vbat, 3);
-			LCD_print("Bat:", 43, 3);
-			
-			LCD_print("Signal:", 0, 4);
-							
+		float vbat = (3.3/4095)*adc[2]*kd * 10; // 3,3 В на делителе при 11,6 В максимальном, дальше делитель не имее смысла
+		
+		LCD_print("A1:", 0, 1);
+		LCD_var_str(18, 1, adc[0], 4);
+		LCD_print("A2:", 43, 1);
+		LCD_var_str(60, 1, adc[1], 4);
+		
+		LCD_print("A3:", 0, 2);
+		LCD_var_str(18, 2, adc[2], 4);
+		LCD_print("A4:", 43, 2);
+		LCD_var_str(60, 2, adc[3], 4);
+		
+		LCD_print("VBat:", 0, 3);
+		LCD_var_str(30, 3, vbat, 3);
+		LCD_print("Bat:", 43, 3);
+		
+		LCD_print("Signal:", 0, 4);
+						
 ///////////////////////////////////// ПЕРЕДАЧА /////////////////////////////////////////////
-//			if (adc1 == 0){ adc1 = 1;}
-//			if (adc2 == 0){ adc2 = 1;}
-//			if (adc3 == 0){ adc3 = 1;}
-
-			nrf_data[0] = 77;
-			nrf_data[1] = 86;
-			nrf_data[2] = 97;
-			
-			nrf_data[3] = adc1;
-			nrf_data[4] = adc2;
-			
-			if (button){
-			nrf_data[5] = adc3;
-			}
-			else{ 
-				nrf_data[5] = 1;
-			}	
-			nrf_data[6] = 50; // установки не шлём
-			
-			uint8_t remsg = 0; // переменная для приёма байта пришедшего вместе с ответом
-			float vbatreceiver; // для вычисления напряжения батареи еа приемнике
-			if(write(&nrf_data, strlen((const char*)nrf_data))) // отправляем данные
-			{
-				if(isAckPayloadAvailable()) // проверяем пришло ли что-то вместе с ответом
-				{
-				read(&remsg, sizeof(remsg)); // получаем напряжение с батареи с ответом подтверждения
-					vbatreceiver = remsg / 10; // вычитаем напругу батареи, делим на 10 чтобы получить реальное число
-					LCD_var_str(65, 3, vbatreceiver, 3);
-					LCD_print("Yes", 45, 4);
-				}
-			}
-			else
-			LCD_print("No", 45, 4);
-			
-			adc[0] = 0;
-			adc[1] = 0;
-			adc[2] = 0;
-			adc[3] = 0;
-			HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 4);
+		nrf_data[0] = 77;
+		nrf_data[1] = 86;
+		nrf_data[2] = 97;
+		
+		nrf_data[3] = adc1;
+		nrf_data[4] = adc2;
+		
+		if (button){
+		nrf_data[5] = adc3;
 		}
+		else{ 
+			nrf_data[5] = 1;
+		}	
+		nrf_data[6] = 50; // установки не шлём
+		
+		uint8_t remsg = 0; // переменная для приёма байта пришедшего вместе с ответом
+		float vbatreceiver; // для вычисления напряжения батареи еа приемнике
+		
+		if(write(&nrf_data, strlen((const char*)nrf_data))) // отправляем данные
+		{
+			if(isAckPayloadAvailable()) // проверяем пришло ли что-то вместе с ответом
+			{
+			read(&remsg, sizeof(remsg)); // получаем напряжение с батареи с ответом подтверждения
+				vbatreceiver = remsg / 10; // вычитаем напругу батареи, делим на 10 чтобы получить реальное число
+				LCD_var_str(65, 3, vbatreceiver, 3);
+				LCD_print("Yes", 45, 4);
+			}
+		}
+		else
+		LCD_print("No", 45, 4);
+		
+		adc[0] = 0;
+		adc[1] = 0;
+		adc[2] = 0;
+		adc[3] = 0;
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 4);
+	}
 		
 		// чтение текущего (нового) состояния кнопки
 		unsigned char but_right_cur = HAL_GPIO_ReadPin(GPIOC, Push_R_Pin);
@@ -1012,9 +874,24 @@ void flight(void)
 // Подменю настроек
 void settings(void)
 {
+	uint8_t nrf_data[32] = {0,}; // буфер указываем максимального размера
+	
+	bool pin1 = HAL_GPIO_ReadPin(GPIOC, Push_R_Pin);
+	bool pin2 = HAL_GPIO_ReadPin(GPIOB, Push_L_Pin);
+	
+	bool pin3 = HAL_GPIO_ReadPin(R_But_GPIO_Port, R_But_Pin);
+	bool pin4 = HAL_GPIO_ReadPin(L_But_GPIO_Port, L_But_Pin);
+	
 	if(flag)
 	{
 		flag = 0;
+		
+		adc1 = map(adc[1], 0, 4095, 1, 255); // 1 канал высота
+		adc2 = map(adc[0], 0, 4095, 1, 255); // 0 канал повороты
+		adc3 = map(adc[3], 0, 4095, 1, 255); // 9 канал АЦП - мотор
+		
+		float vbat = (3.3/4095)*adc[2]*kd * 10;
+		
 		HAL_ADC_Stop_DMA(&hadc1);
 	
 		LCD_print("ADC1:", 0, 0);
@@ -1028,7 +905,48 @@ void settings(void)
 		
 		LCD_print("ADC4:", 0, 3);
 		LCD_var_str(30, 3, adc[3], 4);
-
+		
+		LCD_print("VBat:", 0, 3);
+		LCD_var_str(30, 3, vbat, 3);
+		LCD_print("Bat:", 43, 3);
+			
+		LCD_print("Signal:", 0, 4);
+	
+		nrf_data[0] = 77;
+		nrf_data[1] = 86;
+		nrf_data[2] = 97;
+		nrf_data[3] = adc1; // 
+		nrf_data[4] = adc2; // 
+		nrf_data[5] = 1;
+		nrf_data[6] = 100; // чтобы приемник знал, что шлем установки
+		nrf_data[7] = subtrim;
+		nrf_data[8] = sens1;
+		nrf_data[9] = sens2;
+	
+		uint8_t remsg = 0; // переменная для приёма байта пришедшего вместе с ответом
+		float vbatreceiver; // для вычисления напряжения батареи на приемнике
+		
+		if(write(&nrf_data, strlen((const char*)nrf_data))) // отправляем данные
+		{
+			if(isAckPayloadAvailable()) // проверяем пришло ли что-то вместе с ответом
+			{
+				read(&remsg, sizeof(remsg)); // получаем напряжение с батареи с ответом подтверждения
+				vbatreceiver = remsg / 10; // вычитаем напругу батареи, делим на 10 чтобы получить реальное число
+				LCD_var_str(65, 3, vbatreceiver, 3);
+				LCD_print("Yes", 45, 4);
+				snprintf(str_tx, 64, "Signal: Yes \r\n");
+				CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
+			}
+		}
+		else
+		snprintf(str_tx, 64, "Signal: No \r\n");
+		CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
+		LCD_print("No", 45, 4);
+		
+		snprintf(str_tx, 120, "ADC1 X1:%d Y1:%d  M:%d Bat:%d Vbat:%d J_R:%d J_L:%d But_R:%d But_L:%d subtr:%d sens1:%d sens2:%d \r\n", nrf_data[3], nrf_data[4], adc3, (int)vbat*10, (int)vbatreceiver*10, 
+		!pin1, !pin2, !pin3, !pin4, nrf_data[7], nrf_data[8], nrf_data[9]);
+		CDC_Transmit_FS((uint8_t*)str_tx, strlen(str_tx));
+	
 		adc[0] = 0;
 		adc[1] = 0;
 		adc[2] = 0;
@@ -1094,18 +1012,24 @@ void sensors(void)
 	
 	uint8_t remsg = 0; // переменная для приёма байта пришедшего вместе с ответом
 	float vbatreceiver; // для вычисления напряжения батареи на приемнике
+	
 	if(write(&nrf_data, strlen((const char*)nrf_data))) // отправляем данные
 	{
 		if(isAckPayloadAvailable()) // проверяем пришло ли что-то вместе с ответом
 		{
 		read(&remsg, sizeof(remsg)); // получаем напряжение с батареи с ответом подтверждения
 			vbatreceiver = remsg / 10; // вычитаем напругу батареи, делим на 10 чтобы получить реальное число
-			LCD_var_str(65, 3, remsg, 3);
+			LCD_var_str(65, 3, vbatreceiver, 3);
+			snprintf(str_tx, 64, "Bat: %d \r\n", (int)vbatreceiver*10);
+			CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
 			LCD_print("Yes", 45, 4);
 		}
 	}
 	else
 	LCD_print("No", 45, 4);
+	
+	snprintf(str_tx, 63, "ADC1 X1:%d Y1:%d  M:%d Ch:%d subtr:%d\n", nrf_data[3], nrf_data[4], nrf_data[5], nrf_data[6], nrf_data[7]);
+	CDC_Transmit_FS((uint8_t*)str_tx, strlen(str_tx));
 	
 	// кнопка была нажата, если
 	// прежнее состояние - отпущена (бит = 1), 
@@ -1166,15 +1090,12 @@ void led_lcd(void)
 	uint32_t timme = HAL_GetTick();
 	while ((HAL_GPIO_ReadPin(R_But_GPIO_Port, R_But_Pin) == RESET) && (HAL_GPIO_ReadPin(L_But_GPIO_Port, L_But_Pin) == RESET))
 	{	
-//	if ((but_r_prev == GPIO_PIN_RESET) && (but_r_cur == GPIO_PIN_SET))
-//	{
 		// пока нажаты кнопки проверяем на таймер
 		if((HAL_GetTick() - timme) > 500) // интервал 500мс = 0.5 сек 
 		{
 			HAL_GPIO_TogglePin(LCD_LED_GPIO_Port, LCD_LED_Pin);
 		}
 	}
-//	but_r_prev = but_r_cur;
 }
 
 // кнопка правого стика 
