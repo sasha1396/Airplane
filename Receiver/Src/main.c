@@ -129,104 +129,120 @@ int main(void)
 	HAL_ADCEx_Calibration_Start(&hadc1);
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 2);
 
-	
-	//	HAL_Delay(5000); // Чтобы не пропустить информацию, пока включаешь
   const uint64_t pipe1 = 0xE8E8F0F0E2LL; // адрес нашего канала
 
-	uint8_t res = isChipConnected(); // Проверка подключения модуля к SPI
-
-  char str[128] = {0,};
-  snprintf(str, 64, "Connected: %s\r\n", 1 ? "OK" : "NOT OK");
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
-	HAL_Delay(500);
-
-  res = NRF_Init(); // инициализация
-
-  snprintf(str, 64, "Init: %s\r\n", res > 0 && res < 255 ? "OK" : "NOT OK");
-	CDC_Transmit_FS((unsigned char*)str, strlen(str));
-	HAL_Delay(500);
+	uint8_t connected = isChipConnected(); // проверка на подключените модуля к SPI
 	
-
-  ////////////// SET ////////////////
+	uint8_t res = NRF_Init(); // инициализация
+	
+/////////////////////////////// УСТАНОВКИ ////////////////////////////////
   enableAckPayload();
-  //setAutoAck(false);
-  //setPayloadSize(3);
   setChannel(11);
   openReadingPipe(1, pipe1);
   startListening();
-  ///////////////////////////////////
+/////////////////////////////////////
 
-  ////////////////////////// DEBUG TERMINAL /////////////////////////////
-//  uint8_t status = get_status();
-//  snprintf(str, 64, "get_status: 0x%02x \r\n", status);
+
+///////////////////////////// DEBUG TERMINAL /////////////////////////////
+	
+	
+//HAL_Delay(2000);
+//char str[128] = {0,};
+//snprintf(str, 64, "Connected: %s\r\n", connected ? "OK" : "NOT OK");
+//CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//HAL_Delay(500);
+
+//snprintf(str, 64, "Init: %s\r\n", res > 0 && res < 255 ? "OK" : "NOT OK");
+//CDC_Transmit_FS((unsigned char*)str, strlen(str));
+
+//if (res > 0 && res < 255) 
+//{
+//	uint8_t status = get_status();
+//	snprintf(str, 64, "Status: 0x%02x \r\n", status);
 //	CDC_Transmit_FS((unsigned char*)str, strlen(str));
 //	HAL_Delay(500);
 
-//  status = getPALevel();
-//  snprintf(str, 64, "getPALevel: 0x%02x \n", status);
+//	status = getPALevel();
+//	snprintf(str, 64, "PA_Level: 0x%02x \n", status);
 //	CDC_Transmit_FS((unsigned char*)str, strlen(str));
 //	HAL_Delay(500);
 
-//  if(status == 0x00)
-//  {
+//	if(status == 0x00)
+//	{
 //		CDC_Transmit_FS((unsigned char*)"RF24_PA_MIN\r\n", strlen("RF24_PA_MIN\r\n"));
-//  }
-//  else if(status == 0x01)
-//  {
+//	}
+//	else if(status == 0x01)
+//	{
 //		CDC_Transmit_FS((unsigned char*)"RF24_PA_LOW\r\n", strlen("RF24_PA_LOW\r\n"));
-//  }
-//  else if(status == 0x02)
-//  {
+//	}
+//	else if(status == 0x02)
+//	{
 //		CDC_Transmit_FS((unsigned char*)"RF24_PA_HIGH\r\n", strlen("RF24_PA_HIGH\r\n"));
-//  }
-//  else if(status == 0x03)
-//  {
+//	}
+//	else if(status == 0x03)
+//	{
 //		CDC_Transmit_FS((unsigned char*)"RF24_PA_MAX\r\n", strlen("RF24_PA_MAX\r\n"));
-//  }
-
-//  status = getChannel();
-//  snprintf(str, 64, "getChannel: 0x%02x № %d \r\n", status, status);
-//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
-
-//  status = getDataRate();
-//  snprintf(str, 64, "getDataRate: 0x%02x \r\n", status);
-//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
-
-//  if(status == 0x02)
-//  {
-//		CDC_Transmit_FS((unsigned char*)"RF24_250KBPS\r\n", strlen("RF24_250KBPS\r\n"));
-//  }
-//  else if(status == 0x01)
-//  {
-//		CDC_Transmit_FS((unsigned char*)"RF24_2MBPS\r\n", strlen("RF24_2MBPS\r\n"));
-//  }
-//  else
-//  {
-//		CDC_Transmit_FS((unsigned char*)"RF24_1MBPS\r\n", strlen("RF24_1MBPS\r\n"));
-//  }
-
-//  status = getPayloadSize();
-//  snprintf(str, 64, "getPayloadSize: %d \r\n", status);
+//	}
+//	HAL_Delay(500);
+//	
+//	status = getChannel();
+//	snprintf(str, 64, "Channel: 0x%02x № %d \r\n", status, status);
 //	CDC_Transmit_FS((unsigned char*)str, strlen(str));
 //	HAL_Delay(500);
 
-//  status = getCRCLength();
-//  snprintf(str, 64, "getCRCLength: 0x%02x \r\n", status);
+//	status = getDataRate();
+//	snprintf(str, 64, "Data_Rate: 0x%02x \r\n", status);
 //	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
 
-//  if(status == 0x00)
-//  {
+//	if(status == 0x02)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_250KBPS\r\n", strlen("RF24_250KBPS\r\n"));
+//	}
+//	else if(status == 0x01)
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_2MBPS\r\n", strlen("RF24_2MBPS\r\n"));
+//	}
+//	else
+//	{
+//		CDC_Transmit_FS((unsigned char*)"RF24_1MBPS\r\n", strlen("RF24_1MBPS\r\n"));
+//	}
+//	HAL_Delay(500);
+
+//	status = getPayloadSize();
+//	snprintf(str, 64, "Payload_Size: %d \r\n", status);
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
+
+//	status = getCRCLength();
+//	snprintf(str, 64, "CRC_Length: 0x%02x \r\n", status);
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
+
+//	if(status == 0x00)
+//	{
 //		CDC_Transmit_FS((unsigned char*)"RF24_CRC_DISABLED\r\n", strlen("RF24_CRC_DISABLED\r\n"));
-//  }
-//  else if(status == 0x01)
-//  {
+//	}
+//	else if(status == 0x01)
+//	{
 //		CDC_Transmit_FS((unsigned char*)"RF24_CRC_8\r\n", strlen("RF24_CRC_8\r\n"));
-//  }
-//  else if(status == 0x02)
-//  {
+//	}
+//	else if(status == 0x02)
+//	{
 //		CDC_Transmit_FS((unsigned char*)"RF24_CRC_16\r\n", strlen("RF24_CRC_16\r\n"));
-//  }
-  /////////////////////////////////////////////////////////////////////////////////////////////////////
+//	}
+//	HAL_Delay(500);
+//}
+//else
+//{
+//	HAL_Delay(500);
+//	snprintf(str, 64, "Module is not connected or defective");
+//	CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//	HAL_Delay(500);
+//}
+
+
+/////////////////////////////////////THE END DEBUG TERMINAL///////////////////////////////////////////////////
 
 
   maskIRQ(true, true, true); // маскируем прерывания
@@ -237,6 +253,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+		
 	///////////////////////////////////// ПРИЁМ /////////////////////////////////////////////
 		uint8_t nrf_data[32] = {0,}; // Размер буфера (32-MAX)
 		static uint8_t remsg = 0;
@@ -260,10 +277,7 @@ int main(void)
 		if(available(&pipe_num)) // проверяем пришло ли что-то
 		{
 			remsg = vbat2;
-			//remsg++;
-
-		//	CDC_Transmit_FS((unsigned char*)"pipe 0 \r\n", strlen("pipe 0 \r\n"));
-
+			
 			writeAckPayload(pipe_num, &remsg, sizeof(remsg)); // отправляем полезную нагрузку вместе с подтверждением
 			
 			if(pipe_num == 0) // проверяем куда пришли данные
@@ -296,8 +310,7 @@ int main(void)
 					uint16_t visota = map(nrf_data[3], 1, 255, min, max); // 400 - 2600 крайние положения
 					uint16_t rul = map(nrf_data[4], 1, 255, min, max);
 					uint16_t motor = map(nrf_data[5], 1, 255, 800, 2200);
-					
-					
+							
 				// управление сервами
 				// проверка на среднее значение
 				if (((400+subtrim)+((2600-(400+subtrim))/2)-100 < rul) && (rul < ((400+subtrim)+((2600-(400+subtrim))/2)+100)))
@@ -312,28 +325,13 @@ int main(void)
 					
 					TIM4->CCR3 = motor; // управляем мотором
 
-					
-					//HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-					snprintf(str, 128, "data[3]=%d data[4]=%d data[5]=% is=%d r=%d m=%d sb=%d sn=%d \r\n", nrf_data[3], nrf_data[4], nrf_data[5],
-          visota, rul, motor, subtrim, sens1);
-					CDC_Transmit_FS((unsigned char*)str, strlen(str));
+//					snprintf(str, 128, "data[3]=%d data[4]=%d data[5]=% is=%d r=%d m=%d sb=%d sn=%d \r\n", nrf_data[3], nrf_data[4], nrf_data[5],
+//          visota, rul, motor, subtrim, sens1);
+//					CDC_Transmit_FS((unsigned char*)str, strlen(str));
 				}
 
 			}
 
-//			else if(pipe_num == 2)
-//			{
-//				CDC_Transmit_FS((unsigned char*)"pipe 2 \r\n", strlen("pipe 2 \r\n"));
-//			}
-
-//			else
-//			{
-			//				while(availableMy()) // если данные придут от неуказанного канала, то попадут сюда
-//				{
-//					read(&nrf_data, sizeof(nrf_data));
-//					CDC_Transmit_FS((unsigned char*)"Unknown pipe \r\n", strlen("Unknown pipe \r\n"));
-//				}
-//			}
 		}else {
 			uint32_t timme = HAL_GetTick();
 			while (!available(&pipe_num))
