@@ -61,7 +61,7 @@ const float kd = 3.52;
 char tx[21], x = 0, m = 1, y = 0;
 bool a = true, button = false;
 int i = 0;
-unsigned char subtrim = 160, sens1 = 0, sens2 = 0;
+unsigned char subtrim = 70, sens1 = 30, sens2 = 30;
 
 unsigned char but_right_prev;// переменная для хранения предыдущего состояния стика R
 unsigned char but_left_prev;// переменная для хранения предыдущего состояния стика L
@@ -632,7 +632,7 @@ void menu(unsigned char x)
 			if ((but_right_prev == GPIO_PIN_RESET) && (but_right_cur == GPIO_PIN_SET))
 			{
 				m++;
-				if (m < 1)
+				if (m > 4)
 				{
 					m = 1;
 				}
@@ -644,7 +644,7 @@ void menu(unsigned char x)
 		if ((but_left_prev == GPIO_PIN_RESET) && (but_left_cur == GPIO_PIN_SET))	
 			{ 
 				m--;
-				if (m > 4)
+				if (m < 1)
 				{
 					m = 4;
 				}
@@ -939,7 +939,7 @@ void settings(void)
 			}
 		}
 		else
-		snprintf(str_tx, 64, "Signal: No \r\n");
+		snprintf(str_tx, 64, "Signal: Noo \r\n");
 		CDC_Transmit_FS((unsigned char*)str_tx, strlen(str_tx));
 		LCD_print("No", 45, 4);
 		
@@ -1039,9 +1039,9 @@ void sensors(void)
 		subtrim += 5;
 		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 		// Чтобы не вылезти за границу
-		if (subtrim > 200)
+		if (subtrim > 140)
 		{
-			subtrim = 200;
+			subtrim = 0;
 		}
 	} 
 	but_right_prev = but_right_cur;
@@ -1051,7 +1051,7 @@ void sensors(void)
 		subtrim -= 5;
 		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 		// Чтобы не вылезти за 0
-		if (subtrim > 210)
+		if (subtrim > 140)
 		{
 			subtrim = 0;
 		}
@@ -1062,24 +1062,47 @@ void sensors(void)
 	//Увеличиваем чувствительность
 	if ((but_r_prev == GPIO_PIN_RESET) && (but_r_cur == GPIO_PIN_SET) )
 	{
-		sens1 += 5;
-		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-		if (sens1 > 15)
+		if (HAL_GPIO_ReadPin(GPIOB, Push_L_Pin))
 		{
-			sens1 = 15;
+			sens1 += 5;
+			if (sens1 > 60)
+			{
+				sens1 = 0;
+			}
 		}
+			else
+			{
+				sens2 += 5;
+				if (sens2 > 60)
+				{
+					sens2 = 30;
+				}
+			}
+		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 	} 
 	but_r_prev = but_r_cur;
 	
 	//Уменьшаем чувствительность при зажатой правой кнопке
 	if ((but_l_prev == GPIO_PIN_RESET) && (but_l_cur == GPIO_PIN_SET))
 	{
-		sens1 -= 5;
-		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-		if (sens1 > 16)
+		if (HAL_GPIO_ReadPin(GPIOB, Push_L_Pin))
 		{
-			sens1 = 0;
+		sens1 -= 5;
+			if (sens1 > 60)
+			{
+				sens1 = 0;
+			}
 		}
+		else
+			{
+				sens2 -= 5;
+				if (sens2 > 60)
+				{
+					sens2 = 0;
+				}
+			}
+		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+
 	}
 	but_l_prev = but_l_cur;
 }

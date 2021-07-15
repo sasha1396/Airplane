@@ -76,8 +76,9 @@ char str_rx[21];
 volatile uint8_t flag = 1; // для DMA
 volatile uint16_t adc[2] = {0,}; // у нас два канала поэтому массив из двух элементов
 const float kd = 4.33; //коэффициент  делителя напряжения для (14.3 вольт максимально)
-int subtrim = 1600, sens1 = 0, sens2 = 0;
+int subtrim = 1600, sens1 = 300, sens2 = 300;
 float vbat1, vbat2;
+bool wing = false;
 /* USER CODE END 0 */
 
 /**
@@ -122,9 +123,14 @@ int main(void)
 	HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_3);
 	
 	// Yачальное положение
+	if (wing){
 	TIM4->CCR1 = SERVO_90 - 1100;
 	TIM4->CCR2 = SERVO_90 + 1100;
-
+	}else{
+		subtrim = 700;
+		TIM4->CCR1 = SERVO_90 + 300;
+		TIM4->CCR2 = SERVO_90;
+	}
 	// Запуск АЦП1
 	HAL_ADCEx_Calibration_Start(&hadc1);
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 2);
@@ -282,12 +288,12 @@ int main(void)
 			
 			if(pipe_num == 0) // проверяем куда пришли данные
 			{
-				CDC_Transmit_FS((unsigned char*)"pipe 0 \r\n", strlen("pipe 0 \r\n"));
+			//	CDC_Transmit_FS((unsigned char*)"pipe 0 \r\n", strlen("pipe 0 \r\n"));
 			}
 
 			else if(pipe_num == 1)
 			{
-				CDC_Transmit_FS((unsigned char*)"Pipe 1 \r\n", strlen("Pipe 1 \r\n"));
+				//CDC_Transmit_FS((unsigned char*)"Pipe 1 \r\n", strlen("Pipe 1 \r\n"));
 
 				uint8_t count = getDynamicPayloadSize(); // смотрим сколько байт прилетело
 
@@ -304,25 +310,35 @@ int main(void)
 						sens2 = nrf_data[9]*10; // умножаем на 10 т.к. получаем число от 1 до 255
 					}
 					
+					uint16_t motor = map(nrf_data[5], 1, 255, 800, 2200);
+					// Если летательное крыло
+					if (wing){
 					uint16_t	min = 400 + subtrim + sens1; // минимальное положение с учётом добавок
 					uint16_t	max = 2600 - sens1; //вычитаем расходы 
 					
-					uint16_t visota = map(nrf_data[3], 1, 255, min, max); // 400 - 2600 крайние положения
-					uint16_t rul = map(nrf_data[4], 1, 255, min, max);
-					uint16_t motor = map(nrf_data[5], 1, 255, 800, 2200);
+					uint16_t pitch = map(nrf_data[3], 1, 255, min, max); // 400 - 2600 крайние положения
+					uint16_t roll = map(nrf_data[4], 1, 255, min, max);
 							
 				// управление сервами
 				// проверка на среднее значение
-				if (((400+subtrim)+((2600-(400+subtrim))/2)-100 < rul) && (rul < ((400+subtrim)+((2600-(400+subtrim))/2)+100)))
+				if (((400+subtrim)+((2600-(400+subtrim))/2)-100 < roll) && (roll < ((400+subtrim)+((2600-(400+subtrim))/2)+100)))
 				{ // если поворотный стик на месте, то управляем стиком высоты
-				TIM4->CCR1 = 3000 - visota; // управление сервы с противоположной стороны
-				TIM4->CCR2 = visota;
+				TIM4->CCR1 = 3000 - pitch; // управление сервы с противоположной стороны
+				TIM4->CCR2 = pitch;
 				} else 
 					{ // иначе управляем стиком поворота
-					TIM4->CCR1 = rul - 1600; // инвертирование сервы
-					TIM4->CCR2 = rul;
+					TIM4->CCR1 = roll - 1600; // инвертирование сервы
+					TIM4->CCR2 = roll;
 					}
-					
+					}else{
+					uint16_t pitch = map(nrf_data[3], 1, 255, SERVO_0 + sens1 + subtrim, SERVO_180 - sens1);
+					uint16_t roll = map(nrf_data[4], 1, 255, SERVO_0 + sens2 + 80, SERVO_180 - sens2);//80 xnj,s hjdyj dscnfdbnm crfxfkre
+						
+
+				// В отличие от крыла тут все проще, стик по X  - отвечает за крен, Y - за тангаж
+					TIM4->CCR1 = pitch; // тангаж
+					TIM4->CCR2 = roll; // крен
+				}
 					TIM4->CCR3 = motor; // управляем мотором
 
 //					snprintf(str, 128, "data[3]=%d data[4]=%d data[5]=% is=%d r=%d m=%d sb=%d sn=%d \r\n", nrf_data[3], nrf_data[4], nrf_data[5],
@@ -340,7 +356,7 @@ int main(void)
 				{				
 				TIM4->CCR3 = 800; // обрубаем мотор
 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-				CDC_Transmit_FS((unsigned char*)"No connection!\r\n", strlen("No connection!\r\n"));
+				//CDC_Transmit_FS((unsigned char*)"No connection!\r\n", strlen("No connection!\r\n"));
 				}else
 					{
 							HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
