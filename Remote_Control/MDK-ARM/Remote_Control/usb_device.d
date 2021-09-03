@@ -13,6 +13,7 @@ remote_control\usb_device.o: ../Inc/stm32f1xx_hal_conf.h
 remote_control\usb_device.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rcc.h
 remote_control\usb_device.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_def.h
 remote_control\usb_device.o: ../Drivers/CMSIS/Device/ST/STM32F1xx/Include/stm32f1xx.h
+remote_control\usb_device.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
 remote_control\usb_device.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
 remote_control\usb_device.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_rcc_ex.h
 remote_control\usb_device.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_gpio.h

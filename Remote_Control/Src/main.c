@@ -17,7 +17,6 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
-
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "usb_device.h"
@@ -54,9 +53,9 @@ TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
 char str_tx[121] = {0,};
-volatile uint16_t adc[4] = {0,}; // у нас четыре канала поэтому массив из четырех элементов
+volatile uint16_t adc[5] = {0,}; // у нас пять каналов поэтому массив из пяти элементов
 volatile uint8_t flag = 0; // для DMA
-uint8_t adc1, adc2, adc3, adc4;
+uint8_t adc1, adc2, adc3, adc4, adc5;
 const float kd = 3.52;
 char tx[21], x = 0, m = 1, y = 0;
 bool a = true, button = false;
@@ -95,6 +94,7 @@ void flight(void);
 void settings(void);
 void menu(unsigned char x);
 void sensors(void);
+void test(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -122,7 +122,6 @@ int main(void)
 	LCD_setDIN(LCD_DIN_GPIO_Port, LCD_DIN_Pin);
 	LCD_setCLK(LCD_CLK_GPIO_Port, LCD_CLK_Pin);
   /* USER CODE END 1 */
-  
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -292,6 +291,7 @@ int main(void)
   while (1)
   {
 		menu(x);	
+		//test();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -309,7 +309,8 @@ void SystemClock_Config(void)
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
@@ -322,7 +323,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -361,7 +362,7 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 1 */
 
   /* USER CODE END ADC1_Init 1 */
-  /** Common config 
+  /** Common config
   */
   hadc1.Instance = ADC1;
   hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
@@ -369,12 +370,12 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 4;
+  hadc1.Init.NbrOfConversion = 6;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
   }
-  /** Configure Regular Channel 
+  /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_REGULAR_RANK_1;
@@ -383,7 +384,7 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  /** Configure Regular Channel 
+  /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_1;
   sConfig.Rank = ADC_REGULAR_RANK_2;
@@ -391,7 +392,7 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  /** Configure Regular Channel 
+  /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_8;
   sConfig.Rank = ADC_REGULAR_RANK_3;
@@ -399,10 +400,18 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  /** Configure Regular Channel 
+  /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_9;
   sConfig.Rank = ADC_REGULAR_RANK_4;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_5;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -504,10 +513,10 @@ static void MX_TIM4_Init(void)
 
 }
 
-/** 
+/**
   * Enable DMA controller clock
   */
-static void MX_DMA_Init(void) 
+static void MX_DMA_Init(void)
 {
 
   /* DMA controller clock enable */
@@ -541,11 +550,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, IRQ_Pin|CE_Pin|CSN_Pin|LCD_LED_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, CE_Pin|CSN_Pin|LCD_LED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LCD_CLK_Pin|LCD_DIN_Pin|LCD_DC_Pin|LCD_CE_Pin 
-                          |LCD_RST_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, IRQ_Pin|LCD_CLK_Pin|LCD_DIN_Pin|LCD_DC_Pin
+                          |LCD_CE_Pin|LCD_RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PC13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
@@ -560,12 +569,21 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(Push_R_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IRQ_Pin CE_Pin CSN_Pin LCD_LED_Pin */
-  GPIO_InitStruct.Pin = IRQ_Pin|CE_Pin|CSN_Pin|LCD_LED_Pin;
+  /*Configure GPIO pins : CE_Pin CSN_Pin LCD_LED_Pin */
+  GPIO_InitStruct.Pin = CE_Pin|CSN_Pin|LCD_LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : IRQ_Pin LCD_CLK_Pin LCD_DIN_Pin LCD_DC_Pin
+                           LCD_CE_Pin LCD_RST_Pin */
+  GPIO_InitStruct.Pin = IRQ_Pin|LCD_CLK_Pin|LCD_DIN_Pin|LCD_DC_Pin
+                          |LCD_CE_Pin|LCD_RST_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : Push_L_Pin */
   GPIO_InitStruct.Pin = Push_L_Pin;
@@ -578,15 +596,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : LCD_CLK_Pin LCD_DIN_Pin LCD_DC_Pin LCD_CE_Pin 
-                           LCD_RST_Pin */
-  GPIO_InitStruct.Pin = LCD_CLK_Pin|LCD_DIN_Pin|LCD_DC_Pin|LCD_CE_Pin 
-                          |LCD_RST_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
 
@@ -790,20 +799,21 @@ void flight(void)
 		HAL_ADC_Stop_DMA(&hadc1); // это необязательно
 		
 		adc1 = map(adc[1], 0, 4095, 1, 255); // 1 канал высота
-		adc2 = map(adc[0], 0, 4095, 1, 255); // 0 канал повороты
+		adc2 = map(adc[0], 0, 4095, 1, 255); // 0 канал элероны
 		adc3 = map(adc[3], 0, 4095, 1, 255); // 9 канал АЦП - мотор
-			
+		adc4 = map(adc[4], 0, 4095, 1, 255); // 2 канал АЦП - киль
+		
+		LCD_print("X1:", 0, 1);
+		LCD_var_str(18, 1, adc[4], 4);
+		LCD_print("X2:", 43, 1);
+		LCD_var_str(60, 1, adc[0], 4);
+
+		LCD_print("Y1:", 0, 2);
+		LCD_var_str(18, 2, adc[3], 4);
+		LCD_print("Y2:", 43, 2);
+		LCD_var_str(60, 2, adc[1], 4);
+		
 		float vbat = (3.3/4095)*adc[2]*kd * 10; // 3,3 В на делителе при 11,6 В максимальном, дальше делитель не имее смысла
-		
-		LCD_print("A1:", 0, 1);
-		LCD_var_str(18, 1, adc[0], 4);
-		LCD_print("A2:", 43, 1);
-		LCD_var_str(60, 1, adc[1], 4);
-		
-		LCD_print("A3:", 0, 2);
-		LCD_var_str(18, 2, adc[2], 4);
-		LCD_print("A4:", 43, 2);
-		LCD_var_str(60, 2, adc[3], 4);
 		
 		LCD_print("VBat:", 0, 3);
 		LCD_var_str(30, 3, vbat, 3);
@@ -811,13 +821,14 @@ void flight(void)
 		
 		LCD_print("Signal:", 0, 4);
 						
-///////////////////////////////////// ПЕРЕДАЧА /////////////////////////////////////////////
+		///////////////////////////////////// ПЕРЕДАЧА /////////////////////////////////////////////
 		nrf_data[0] = 77;
 		nrf_data[1] = 86;
 		nrf_data[2] = 97;
 		
 		nrf_data[3] = adc1;
 		nrf_data[4] = adc2;
+		nrf_data[7] = adc4;
 		
 		if (button){
 		nrf_data[5] = adc3;
@@ -847,7 +858,8 @@ void flight(void)
 		adc[1] = 0;
 		adc[2] = 0;
 		adc[3] = 0;
-		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 4);
+		adc[4] = 0;
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 5);
 	}
 		
 		// чтение текущего (нового) состояния кнопки
@@ -887,24 +899,26 @@ void settings(void)
 		flag = 0;
 		
 		adc1 = map(adc[1], 0, 4095, 1, 255); // 1 канал высота
-		adc2 = map(adc[0], 0, 4095, 1, 255); // 0 канал повороты
+		adc2 = map(adc[0], 0, 4095, 1, 255); // 0 канал элероны
 		adc3 = map(adc[3], 0, 4095, 1, 255); // 9 канал АЦП - мотор
+		adc4 = map(adc[4], 0, 4095, 1, 255); // 2 канал АЦП - киль
 		
 		float vbat = (3.3/4095)*adc[2]*kd * 10;
 		
 		HAL_ADC_Stop_DMA(&hadc1);
 	
-		LCD_print("ADC1:", 0, 0);
-		LCD_var_str(30, 0, adc[0], 4);
+		LCD_print("X1:", 0, 0);
+		LCD_var_str(18, 0, adc[4], 4);
+		LCD_print("X2:", 43, 0);
+		LCD_var_str(60, 0, adc[0], 4);
 
-		LCD_print("ADC2:", 0, 1);
-		LCD_var_str(30, 1, adc[1], 4);
+		LCD_print("Y1:", 0, 1);
+		LCD_var_str(18, 1, adc[3], 4);
+		LCD_print("Y2:", 43, 1);
+		LCD_var_str(60, 1, adc[1], 4);
 		
-		LCD_print("ADC3:", 0, 2);
-		LCD_var_str(30, 2, adc[2], 4);
-		
-		LCD_print("ADC4:", 0, 3);
-		LCD_var_str(30, 3, adc[3], 4);
+		LCD_print("A5:", 0, 2);
+		LCD_var_str(18, 2, adc[2], 4);
 		
 		LCD_print("VBat:", 0, 3);
 		LCD_var_str(30, 3, vbat, 3);
@@ -922,6 +936,7 @@ void settings(void)
 		nrf_data[7] = subtrim;
 		nrf_data[8] = sens1;
 		nrf_data[9] = sens2;
+		nrf_data[10] = adc4;
 	
 		uint8_t remsg = 0; // переменная для приёма байта пришедшего вместе с ответом
 		float vbatreceiver; // для вычисления напряжения батареи на приемнике
@@ -951,7 +966,8 @@ void settings(void)
 		adc[1] = 0;
 		adc[2] = 0;
 		adc[3] = 0;
-		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 4);
+		adc[4] = 0;
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 5);
 	}
 }
 
@@ -974,15 +990,18 @@ void sensors(void)
 		HAL_ADC_Stop_DMA(&hadc1); // это необязательно
 		
 		adc1 = map(adc[1], 0, 4095, 1, 256); // 1 канал высота
-		adc2 = map(adc[0], 0, 4095, 1, 256); // 0 канал повороты
+		adc2 = map(adc[0], 0, 4095, 1, 256); // 0 канал элероны
 		adc3 = map(adc[3], 0, 4095, 1, 256); // 9 канал АЦП - мотор
+		adc4 = map(adc[4], 0, 4095, 1, 255); // 2 канал АЦП - киль
+		
 		vbat = (3.3/4095)*adc[2]*kd * 10; // 3,3 В на делителе при 11,6 В максимальном, дальше делитель не имее смысла
 		
 		adc[0] = 0;
 		adc[1] = 0;
 		adc[2] = 0;
 		adc[3] = 0;
-		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 4);
+		adc[4] = 0;
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 5);
 	}
 	
 	LCD_print("Sens1:", 0, 0);
@@ -1009,6 +1028,7 @@ void sensors(void)
 	nrf_data[7] = subtrim;
 	nrf_data[8] = sens1;
 	nrf_data[9] = sens2;
+	nrf_data[10] = adc4;
 	
 	uint8_t remsg = 0; // переменная для приёма байта пришедшего вместе с ответом
 	float vbatreceiver; // для вычисления напряжения батареи на приемнике
@@ -1185,6 +1205,48 @@ void speaker (void)
 	}
 }
 
+void test(void)
+{
+	if(flag)
+	{
+		flag = 0;
+		
+		HAL_ADC_Stop_DMA(&hadc1);
+	
+		LCD_print("X1:", 0, 0);
+		LCD_var_str(18, 0, adc[4], 4);
+		LCD_print("X2:", 43, 0);
+		LCD_var_str(60, 0, adc[0], 4);
+
+		LCD_print("Y1:", 0, 1);
+		LCD_var_str(18, 1, adc[3], 4);
+		LCD_print("Y2:", 43, 1);
+		LCD_var_str(60, 1, adc[1], 4);
+		
+		LCD_print("A5:", 0, 2);
+		LCD_var_str(18, 2, adc[2], 4);
+
+		float vbat = (3.3/4095) * adc[2] * kd;
+		
+		LCD_print("VBat:", 0, 3);
+		LCD_var_str(30, 3, vbat, 3);
+		LCD_print("Bat:", 43, 3);
+			
+		LCD_print("Signal:", 0, 4);
+
+		snprintf(str_tx, 120, "Ch0: %d Ch1: %d Ch2: %d Ch3: %d Ch4: %d Vbat: %.3f \r\n", adc[0], adc[1], adc[2], adc[3], adc[4], (float)vbat);
+		CDC_Transmit_FS((uint8_t*)str_tx, strlen(str_tx));
+		HAL_Delay(100);
+	
+		adc[0] = 0;
+		adc[1] = 0;
+		adc[2] = 0;
+		adc[3] = 0;
+		adc[4] = 0;
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 5);
+	}
+}
+
 /* USER CODE END 4 */
 
 /**
@@ -1208,7 +1270,7 @@ void Error_Handler(void)
   * @retval None
   */
 void assert_failed(uint8_t *file, uint32_t line)
-{ 
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */

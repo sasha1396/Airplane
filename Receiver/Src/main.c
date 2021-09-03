@@ -68,11 +68,12 @@ static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 void USB_Reset(void);
 long map(long x, long in_min, long in_max, long out_min, long out_max);
+void receive(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-char str_rx[21];
+char str[129];
 volatile uint8_t flag = 1; // для DMA
 volatile uint16_t adc[2] = {0,}; // у нас два канала поэтому массив из двух элементов
 const float kd = 4.33; //коэффициент  делителя напряжения для (14.3 вольт максимально)
@@ -90,7 +91,6 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
-  
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -121,6 +121,7 @@ int main(void)
 	HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_2);
 	HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_3);
+	HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_4);
 	
 	// Yачальное положение
 	if (wing){
@@ -130,6 +131,7 @@ int main(void)
 		subtrim = 700;
 		TIM4->CCR1 = SERVO_90 + 300;
 		TIM4->CCR2 = SERVO_90;
+		TIM4->CCR4 = SERVO_90;
 	}
 	// Запуск АЦП1
 	HAL_ADCEx_Calibration_Start(&hadc1);
@@ -258,111 +260,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+		receive();
     /* USER CODE END WHILE */
-		
-	///////////////////////////////////// ПРИЁМ /////////////////////////////////////////////
-		uint8_t nrf_data[32] = {0,}; // Размер буфера (32-MAX)
-		static uint8_t remsg = 0;
-		uint8_t pipe_num = 0;
-		
-		if(flag)
-		{
-			flag = 0;
 
-		//расчёт заряда батареи1 (0 канал АЦП1)
-		vbat1 = (3.3/4095)*adc[0]*kd * 10; // 3,3 В на делителе при 14,3 В, дальше делитель не имее смысла
-		//расчёт заряда батареи2 (1 канал АЦП1) умножаю на 10, чтобы передать целое число
-		vbat2 = (3.3/4095)*adc[1]*kd * 10; // 3,3 В на делителе при 14,3 В, дальше делитель не имее смысла
-					
-		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 2);
-
-		adc[0] = 0;
-		adc[1] = 0;
-		}
-		
-		if(available(&pipe_num)) // проверяем пришло ли что-то
-		{
-			remsg = vbat2;
-			
-			writeAckPayload(pipe_num, &remsg, sizeof(remsg)); // отправляем полезную нагрузку вместе с подтверждением
-			
-			if(pipe_num == 0) // проверяем куда пришли данные
-			{
-			//	CDC_Transmit_FS((unsigned char*)"pipe 0 \r\n", strlen("pipe 0 \r\n"));
-			}
-
-			else if(pipe_num == 1)
-			{
-				//CDC_Transmit_FS((unsigned char*)"Pipe 1 \r\n", strlen("Pipe 1 \r\n"));
-
-				uint8_t count = getDynamicPayloadSize(); // смотрим сколько байт прилетело
-
-				read(&nrf_data, count); // Читаем данные в массив nrf_data и указываем сколько байт читать
-
-				if(nrf_data[0] == 77 && nrf_data[1] == 86 && nrf_data[2] == 97) // проверяем правильность данных
-				{
-
-					// изменяя это значение, смещаем нейтральное положение
-					if (nrf_data[6] == 100)
-					{
-						subtrim = nrf_data[7]*10; // умножаем на 10 т.к. получаем число от 1 до 255
-						sens1 = nrf_data[8]*10; // умножаем на 10 т.к. получаем число от 1 до 255
-						sens2 = nrf_data[9]*10; // умножаем на 10 т.к. получаем число от 1 до 255
-					}
-					
-					uint16_t motor = map(nrf_data[5], 1, 255, 800, 2200);
-					// Если летательное крыло
-					if (wing){
-					uint16_t	min = 400 + subtrim + sens1; // минимальное положение с учётом добавок
-					uint16_t	max = 2600 - sens1; //вычитаем расходы 
-					
-					uint16_t pitch = map(nrf_data[3], 1, 255, min, max); // 400 - 2600 крайние положения
-					uint16_t roll = map(nrf_data[4], 1, 255, min, max);
-							
-				// управление сервами
-				// проверка на среднее значение
-				if (((400+subtrim)+((2600-(400+subtrim))/2)-100 < roll) && (roll < ((400+subtrim)+((2600-(400+subtrim))/2)+100)))
-				{ // если поворотный стик на месте, то управляем стиком высоты
-				TIM4->CCR1 = 3000 - pitch; // управление сервы с противоположной стороны
-				TIM4->CCR2 = pitch;
-				} else 
-					{ // иначе управляем стиком поворота
-					TIM4->CCR1 = roll - 1600; // инвертирование сервы
-					TIM4->CCR2 = roll;
-					}
-					}else{
-					uint16_t pitch = map(nrf_data[3], 1, 255, SERVO_0 + sens1 + subtrim, SERVO_180 - sens1);
-					uint16_t roll = map(nrf_data[4], 1, 255, SERVO_0 + sens2 + 80, SERVO_180 - sens2);//80 xnj,s hjdyj dscnfdbnm crfxfkre
-						
-
-				// В отличие от крыла тут все проще, стик по X  - отвечает за крен, Y - за тангаж
-					TIM4->CCR1 = pitch; // тангаж
-					TIM4->CCR2 = roll; // крен
-				}
-					TIM4->CCR3 = motor; // управляем мотором
-
-//					snprintf(str, 128, "data[3]=%d data[4]=%d data[5]=% is=%d r=%d m=%d sb=%d sn=%d \r\n", nrf_data[3], nrf_data[4], nrf_data[5],
-//          visota, rul, motor, subtrim, sens1);
-//					CDC_Transmit_FS((unsigned char*)str, strlen(str));
-				}
-
-			}
-
-		}else {
-			uint32_t timme = HAL_GetTick();
-			while (!available(&pipe_num))
-			{ // если потеряли связь более 3с
-				if(((HAL_GetTick() - timme) > 1000) && ((HAL_GetTick() - timme) < 4000)) // Проверка на связь
-				{				
-				TIM4->CCR3 = 800; // обрубаем мотор
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-				//CDC_Transmit_FS((unsigned char*)"No connection!\r\n", strlen("No connection!\r\n"));
-				}else
-					{
-							HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-					}
-			}
-		} 
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -378,7 +278,7 @@ void SystemClock_Config(void)
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the CPU, AHB and APB busses clocks
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
@@ -391,7 +291,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the CPU, AHB and APB busses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -430,7 +330,7 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 1 */
 
   /* USER CODE END ADC1_Init 1 */
-  /** Common config 
+  /** Common config
   */
   hadc1.Instance = ADC1;
   hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
@@ -443,7 +343,7 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  /** Configure Regular Channel 
+  /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_REGULAR_RANK_1;
@@ -452,7 +352,7 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  /** Configure Regular Channel 
+  /** Configure Regular Channel
   */
   sConfig.Channel = ADC_CHANNEL_1;
   sConfig.Rank = ADC_REGULAR_RANK_2;
@@ -554,6 +454,10 @@ static void MX_TIM4_Init(void)
   {
     Error_Handler();
   }
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN TIM4_Init 2 */
 
   /* USER CODE END TIM4_Init 2 */
@@ -561,10 +465,10 @@ static void MX_TIM4_Init(void)
 
 }
 
-/** 
+/**
   * Enable DMA controller clock
   */
-static void MX_DMA_Init(void) 
+static void MX_DMA_Init(void)
 {
 
   /* DMA controller clock enable */
@@ -592,8 +496,6 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
-	USB_Reset();
-	
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 
@@ -626,7 +528,6 @@ static void MX_GPIO_Init(void)
 //для сброса USB
 void USB_Reset(void)
 {
-
 	 GPIO_InitTypeDef GPIO_InitStruct = {0};
 
 	 // инициализируем пин DP как выход
@@ -652,10 +553,122 @@ long map(long x, long in_min, long in_max, long out_min, long out_max)
 //вызов по завершению конвертации
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
-    if(hadc->Instance == ADC1)
-    {
-        flag = 1;
-    }
+	if(hadc->Instance == ADC1)
+	{
+			flag = 1;
+	}
+}
+
+//обработка приема
+void receive(void)
+{
+	///////////////////////////////////// ПРИЁМ /////////////////////////////////////////////
+	uint8_t nrf_data[32] = {0,}; // Размер буфера (32-MAX)
+	static uint8_t remsg = 0;
+	uint8_t pipe_num = 0;
+	
+	if(flag)
+	{
+		flag = 0;
+
+		//расчёт заряда батареи1 (0 канал АЦП1)
+		vbat1 = (3.3/4095)*adc[0]*kd * 10; // 3,3 В на делителе при 14,3 В, дальше делитель не имее смысла
+		//расчёт заряда батареи2 (1 канал АЦП1) умножаю на 10, чтобы передать целое число
+		vbat2 = (3.3/4095)*adc[1]*kd * 10; // 3,3 В на делителе при 14,3 В, дальше делитель не имее смысла
+					
+		HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&adc, 2);
+
+		adc[0] = 0;
+		adc[1] = 0;
+	}
+	
+	if(available(&pipe_num)) // проверяем пришло ли что-то
+	{
+		remsg = vbat2;
+		
+		writeAckPayload(pipe_num, &remsg, sizeof(remsg)); // отправляем полезную нагрузку вместе с подтверждением
+		
+		if(pipe_num == 0) // проверяем куда пришли данные
+		{
+		//	CDC_Transmit_FS((unsigned char*)"pipe 0 \r\n", strlen("pipe 0 \r\n"));
+		}
+
+		else if(pipe_num == 1)
+		{
+			//CDC_Transmit_FS((unsigned char*)"Pipe 1 \r\n", strlen("Pipe 1 \r\n"));
+
+			uint8_t count = getDynamicPayloadSize(); // смотрим сколько байт прилетело
+
+			read(&nrf_data, count); // Читаем данные в массив nrf_data и указываем сколько байт читать
+
+			if(nrf_data[0] == 77 && nrf_data[1] == 86 && nrf_data[2] == 97) // проверяем правильность данных
+			{
+
+				// изменяя это значение, смещаем нейтральное положение
+				if (nrf_data[6] == 100)
+				{
+					subtrim = nrf_data[7]*10; // умножаем на 10 т.к. получаем число от 1 до 255
+					sens1 = nrf_data[8]*10; // умножаем на 10 т.к. получаем число от 1 до 255
+					sens2 = nrf_data[9]*10; // умножаем на 10 т.к. получаем число от 1 до 255
+				}
+				
+				uint16_t motor = map(nrf_data[5], 1, 255, 800, 2200);
+				// Если летательное крыло
+				if (wing){
+				uint16_t	min = 400 + subtrim + sens1; // минимальное положение с учётом добавок
+				uint16_t	max = 2600 - sens1; //вычитаем расходы 
+				
+				uint16_t pitch = map(nrf_data[3], 1, 255, min, max); // 400 - 2600 крайние положения
+				uint16_t roll = map(nrf_data[4], 1, 255, min, max);
+						
+			// управление сервами
+			// проверка на среднее значение
+			if (((400+subtrim)+((2600-(400+subtrim))/2)-100 < roll) && (roll < ((400+subtrim)+((2600-(400+subtrim))/2)+100)))
+			{ // если поворотный стик на месте, то управляем стиком высоты
+			TIM4->CCR1 = 3000 - pitch; // управление сервы с противоположной стороны
+			TIM4->CCR2 = pitch;
+			} else 
+				{ // иначе управляем стиком поворота
+				TIM4->CCR1 = roll - 1600; // инвертирование сервы
+				TIM4->CCR2 = roll;
+				}
+				}else{
+				uint16_t pitch = map(nrf_data[3], 1, 255, SERVO_0 + sens1 + subtrim, SERVO_180 - sens1);
+				uint16_t roll = map(nrf_data[4], 1, 255, SERVO_0 + sens2 + 80, SERVO_180 - sens2);//80 чтобы ровно выставить качалку
+				uint16_t raw = map(nrf_data[7], 1, 255, SERVO_0 + 300, SERVO_180 - 300);
+					
+				// В отличие от крыла тут все проще, стик по X  - отвечает за крен, Y - за тангаж
+				TIM4->CCR1 = pitch;	// тангаж
+				TIM4->CCR2 = roll; 	// крен
+				TIM4->CCR4 = raw; 	// рысканье
+					
+				snprintf(str, 128, "pitch=%d roll=%d raw=%d m=%d sb=%d sn=%d \r\n", pitch, roll, raw, motor, subtrim, sens1);
+				CDC_Transmit_FS((unsigned char*)str, strlen(str));
+			}
+				TIM4->CCR3 = motor; // управляем мотором
+
+//			snprintf(str, 128, "d3=%d d4=%d d5=% pitch=%d roll=%d raw=%d m=%d sb=%d sn=%d \r\n", nrf_data[3], nrf_data[4], nrf_data[5],
+//			pitch, roll, raw, motor, subtrim, sens1);
+//			CDC_Transmit_FS((unsigned char*)str, strlen(str));
+			}
+
+		}
+
+	}else {
+		uint32_t timme = HAL_GetTick();
+		while (!available(&pipe_num))
+		{ // если потеряли связь более 3с
+			if(((HAL_GetTick() - timme) > 1000) && ((HAL_GetTick() - timme) < 4000)) // Проверка на связь
+			{				
+			TIM4->CCR3 = 800; // обрубаем мотор
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+			//CDC_Transmit_FS((unsigned char*)"No connection!\r\n", strlen("No connection!\r\n"));
+			}else
+				{
+						HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+				}
+		}
+	} 
 }
 
 // установка субтриммера
@@ -683,7 +696,7 @@ void Error_Handler(void)
   * @retval None
   */
 void assert_failed(uint8_t *file, uint32_t line)
-{ 
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */

@@ -4,7 +4,7 @@
  *      *** Do not modify ! ***
  *
  * Project: 'Remote_Control' 
- * Target:  'REMOTE_CONTROL' 
+ * Target:  'Remote_Control' 
  */
 
 #ifndef RTE_COMPONENTS_H
